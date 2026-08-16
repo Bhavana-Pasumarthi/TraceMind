@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/build/
+npm-debug.log*
+
+# Env / secrets
+.env
+.env.local
+*.pem
+
+# Docker
+docker-compose.override.yml
+
+# Data artifacts generated at runtime (keep repo lean; simulator regenerates these)
+data/logs/*
+data/metrics/*
+data/traces/*
+data/deployments/*
+data/incidents/*
+!data/logs/.gitkeep
+!data/metrics/.gitkeep
+!data/traces/.gitkeep
+!data/deployments/.gitkeep
+!data/incidents/.gitkeep
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Postgres local volume (if bind-mounted)
+pgdata/

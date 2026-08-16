@@ -1,266 +1,112 @@
 # TraceMind
 
-## Agentic Software Reliability & Root-Cause Analysis Platform
+**Agentic Software Reliability & Root-Cause Analysis Platform**
 
-TraceMind is an **agentic software reliability platform designed to investigate simulated software incidents by correlating operational evidence from logs, metrics, distributed traces, deployments, code changes, historical incidents, and engineering runbooks.**
+> TraceMind is an agentic software reliability platform that investigates
+> software incidents by correlating operational evidence and generates
+> evidence-backed root-cause hypotheses and validated remediation
+> recommendations.
 
-The goal is to model how a software engineer or SRE investigates a real production incident—not simply to build a chatbot that sends questions to an LLM.
+This is a portfolio project, built in phases, with a working deterministic
+system underneath the AI layer — if you removed the LLM, the operational
+data, dashboard, and evidence would still exist and be queryable.
 
-When an incident occurs, engineers often need to manually examine multiple sources of operational data to determine what happened, what changed, which service was affected, and what action should be taken. TraceMind aims to reduce this investigation effort by combining deterministic data analysis, retrieval, and specialized AI agents into a structured investigation workflow.
+**Status: Phase 1 of 15 — repo scaffold + Docker Compose + health check.**
+No incident data, agents, or LLM calls exist yet. See `docs/limitations.md`
+for an honest, continuously-updated account of what is and isn't real.
 
-### Core Investigation Flow
+## Why this exists
 
-```text
-Incident
-   │
-   ▼
-Collect Evidence
-   │
-   ├── Logs
-   ├── Metrics
-   ├── Distributed Traces
-   ├── Deployments & Code Changes
-   ├── Historical Incidents
-   └── Runbooks
-   │
-   ▼
-Correlate Evidence
-   │
-   ▼
-Generate Root-Cause Hypotheses
-   │
-   ▼
-Rank Hypotheses Using Evidence
-   │
-   ▼
-Recommend Remediation
-   │
-   ▼
-Validate in a Controlled Sandbox
-   │
-   ▼
-Explainable Incident Report
+Engineers investigating an incident normally dig manually through logs,
+metrics, traces, recent deployments, past incidents, and runbooks.
+TraceMind automates evidence collection and correlation, and clearly
+separates observed facts, retrieved evidence, and AI-generated hypotheses
+— it never presents an unverified hypothesis as a fact. Full problem
+statement and design rationale: `docs/architecture.md`.
+
+## Architecture (current target)
+
+```
+React frontend → FastAPI backend → { Incident Service, Investigation pipeline }
+                                            │
+                                   PostgreSQL + pgvector
+                                            │
+        Orchestrator → Evidence Collection → Evidence Correlation
+              → Root Cause Analysis → Remediation → Validation
 ```
 
-TraceMind explicitly separates:
+Full component diagram, data flow, schema, and agent responsibility
+table: `docs/architecture.md` and the Phase 0 planning document.
 
-* **Facts** — observations directly obtained from system data.
-* **Evidence** — logs, metrics, traces, deployments, documents, or other sources supporting an investigation.
-* **Hypotheses** — possible explanations for the incident.
-* **Recommendations** — proposed actions based on the available evidence.
-* **Validation results** — outcomes obtained after testing a predefined remediation.
+## Tech stack
 
-This separation is intended to reduce unsupported conclusions and make AI-generated investigations easier to inspect and defend.
+Python / FastAPI / Pydantic · React (Vite) · PostgreSQL + pgvector ·
+LangGraph (from Phase 9) · Docker Compose · pytest
 
-## Why TraceMind?
+## Running it locally
 
-Modern software failures can originate from many sources, including:
-
-* Database connection exhaustion
-* Slow database queries
-* API timeouts
-* Memory exhaustion
-* Resource saturation
-* Configuration errors
-* Bad deployments
-* Authentication failures
-* Downstream dependency latency
-* Queue backlogs
-
-Diagnosing these failures often requires correlating information across several observability and engineering systems.
-
-TraceMind provides a controlled environment where these investigation patterns can be reproduced using **deterministic synthetic incidents with known ground truth**. This makes it possible not only to demonstrate the system, but also to evaluate how accurately it identifies root causes and how well its recommendations are supported by evidence.
-
-## What Makes TraceMind Different?
-
-TraceMind is intentionally **not designed as a generic AI assistant**.
-
-The underlying system is designed to remain useful even without an LLM by first establishing a deterministic investigation pipeline:
-
-```text
-Application
-    ↓
-Operational Data
-    ↓
-Incident Detection
-    ↓
-Deterministic Investigation
-    ↓
-Evidence Retrieval
-    ↓
-Agentic Reasoning
-    ↓
-Root-Cause Analysis
-    ↓
-Remediation
-    ↓
-Sandbox Validation
-    ↓
-Evaluation
+```bash
+cp .env.example .env
+docker compose up --build
 ```
 
-AI is treated as a component of the system rather than the system itself.
+- Backend: http://localhost:8000 (OpenAPI docs at `/docs`)
+- Frontend: http://localhost:5173
+- Postgres: localhost:5432
 
-Deterministic logic is preferred wherever it is sufficient, while AI agents are intended for tasks such as reasoning, evidence synthesis, planning, classification, and interpretation.
+Once containers are healthy, `http://localhost:5173` should show
+"backend: ok, database: connected".
 
-## Planned Agentic Investigation
+## Running tests
 
-The investigation workflow is designed around specialized agents with explicit responsibilities:
+```bash
+# Backend (requires the db service running — docker compose up db)
+cd backend
+pip install -r requirements.txt
+pytest tests -v
 
-| Agent                    | Responsibility                                                   |
-| ------------------------ | ---------------------------------------------------------------- |
-| Orchestrator             | Plans and coordinates the investigation                          |
-| Log Analysis             | Identifies relevant error patterns and affected services         |
-| Metrics Analysis         | Detects anomalies and operational correlations                   |
-| Trace Analysis           | Identifies slow or failing request paths                         |
-| Deployment/Code Analysis | Examines recent changes and their relationship to the incident   |
-| Historical Incident      | Retrieves similar previous incidents                             |
-| Evidence Correlation     | Combines findings while preserving evidence provenance           |
-| Root Cause               | Generates and ranks competing hypotheses                         |
-| Remediation              | Produces evidence-backed remediation recommendations             |
-| Validation               | Tests predefined remediation actions in a controlled environment |
-
-Agents will only be introduced where they provide meaningful reasoning or coordination value. The project will avoid creating agents merely for architectural complexity.
-
-## Evidence-Backed Root-Cause Analysis
-
-A central design principle of TraceMind is that an AI conclusion should be traceable to the evidence supporting it.
-
-For example:
-
-```text
-Hypothesis:
-Database connection pool exhaustion
-
-Supporting Evidence:
-- LOG-1827  → connection timeout errors
-- METRIC-883 → database connections near capacity
-- TRACE-221 → increased payment-service latency
-- DEP-142   → recent database configuration change
-- INC-017   → similar historical incident
+# Frontend
+cd frontend
+npm install
+npm run test
 ```
 
-Users should be able to inspect the original evidence associated with an investigation conclusion rather than receiving an unexplained AI-generated answer.
+## Repository structure
 
-## Controlled Remediation
-
-TraceMind is designed with a strong safety boundary around remediation.
-
-The system will **not execute arbitrary commands generated by an AI model on the host machine**.
-
-Instead, remediation will use predefined safe actions that can be tested inside a controlled sandbox. Where appropriate, human approval will be required before validation or application.
-
-The intended workflow is:
-
-```text
-AI Recommendation
-       ↓
-Evidence Review
-       ↓
-Human Approval
-       ↓
-Sandbox Validation
-       ↓
-Test Results
-       ↓
-Final Decision
+```
+backend/     FastAPI app (api, models, schemas, services, agents, tools, evaluation)
+frontend/    React dashboard + investigation workspace
+simulator/   Simulated services + log/metric/trace/incident generators (Phase 3-5)
+data/        Generated operational data + runbooks
+docs/        architecture, agent-design, data-model, evaluation, security, limitations
+scripts/     Utility scripts (e.g. generate_incidents.py)
 ```
 
-## Evaluation
+## Project phases
 
-TraceMind will be evaluated using controlled incidents whose ground-truth causes remain hidden from the investigation agents.
+| Phase | Scope | Status |
+|---|---|---|
+| 1 | Architecture + repo setup | ✅ this commit |
+| 2 | Database + schemas | not started |
+| 3 | Simulated application | not started |
+| 4 | Log/metric/trace generation | not started |
+| 5 | Incident generator | not started |
+| 6 | Frontend dashboard | not started |
+| 7 | Deterministic investigation | not started |
+| 8 | RAG | not started |
+| 9 | Agent orchestration | not started |
+| 10 | Root-cause analysis | not started |
+| 11 | Remediation | not started |
+| 12 | Sandbox validation | not started |
+| 13 | Evaluation | not started |
+| 14 | Testing + security | not started |
+| 15 | Documentation + polish | not started |
 
-Evaluation will consider:
+## Documentation
 
-* Root-cause accuracy
-* Top-K root-cause accuracy
-* Relevant evidence retrieval
-* Evidence grounding
-* Remediation validation success
-* Investigation latency
-* Retrieval and model latency
-* Failure cases and conflicting evidence
-
-A deterministic rule-based diagnostic baseline will also be implemented so that the project can measure whether the additional complexity of agentic reasoning provides measurable value.
-
-**No performance or accuracy claims will be made until they are measured experimentally.**
-
-## Technology Stack
-
-**Frontend**
-
-* React.js
-* JavaScript
-* Modern CSS
-
-**Backend**
-
-* Python
-* FastAPI
-* Pydantic
-
-**AI & Retrieval**
-
-* LangGraph
-* Configurable LLM provider
-* PostgreSQL + pgvector
-
-**Infrastructure**
-
-* Docker
-* Docker Compose
-
-**Testing**
-
-* pytest
-* FastAPI test client
-* Frontend testing where appropriate
-
-**Version Control**
-
-* Git
-* GitHub
-
-## Project Status
-
-TraceMind is being developed incrementally as a portfolio project.
-
-The implementation will follow:
-
-```text
-Architecture
-    ↓
-Database & Schemas
-    ↓
-Simulated Application
-    ↓
-Operational Data Generation
-    ↓
-Incident Generation
-    ↓
-Investigation Dashboard
-    ↓
-Deterministic Investigation
-    ↓
-RAG
-    ↓
-Agent Orchestration
-    ↓
-Root-Cause Analysis
-    ↓
-Remediation
-    ↓
-Sandbox Validation
-    ↓
-Evaluation
-    ↓
-Testing, Security & Documentation
-```
-
-Each phase will be tested and verified before the next phase is introduced.
-
-## Project Goal
-
-The ultimate goal of TraceMind is to demonstrate how **software engineering, observability, data retrieval, deterministic analysis, and agentic AI can be combined into a reproducible and explainable incident investigation system**.
-
-> **TraceMind is an agentic software reliability platform that investigates software incidents by correlating operational evidence and generates evidence-backed root-cause hypotheses and validated remediation recommendations.**
+- `docs/architecture.md` — components, data flow, agent graph
+- `docs/agent-design.md` — per-agent responsibilities and tool contracts
+- `docs/data-model.md` — database schema and indexing rationale
+- `docs/evaluation.md` — benchmark methodology and results
+- `docs/security.md` — current security posture
+- `docs/limitations.md` — honest, continuously updated limitations
