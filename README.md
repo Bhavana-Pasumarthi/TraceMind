@@ -11,9 +11,11 @@ This is a portfolio project, built in phases, with a working deterministic
 system underneath the AI layer — if you removed the LLM, the operational
 data, dashboard, and evidence would still exist and be queryable.
 
-**Status: Phase 1 of 15 — repo scaffold + Docker Compose + health check.**
-No incident data, agents, or LLM calls exist yet. See `docs/limitations.md`
-for an honest, continuously-updated account of what is and isn't real.
+**Status: Phase 2 of 15 — database schema (SQLAlchemy models + Alembic
+migrations for all 15 tables).** No incident data, agents, or LLM calls
+exist yet. See `docs/limitations.md` for an honest, continuously-updated
+account of what is and isn't real — including which Phase 2 pieces are
+not yet verified against a live database.
 
 ## Why this exists
 
@@ -57,6 +59,30 @@ docker compose up --build
 Once containers are healthy, `http://localhost:5173` should show
 "backend: ok, database: connected".
 
+## Applying database migrations (Phase 2)
+
+```bash
+docker compose up -d db
+cd backend
+pip install -r requirements.txt
+alembic upgrade head
+```
+
+This creates all 15 tables (services, logs, metrics, traces,
+deployments, code_changes, historical_incidents, runbooks, incidents,
+evidence, investigations, hypotheses, remediations, validation_runs)
+and enables the pgvector extension. Verify with:
+
+```bash
+pytest tests/test_migrations.py -v
+```
+
+That test is skipped automatically if Postgres isn't reachable, so it
+won't break a quick `pytest` run without the DB up — but it's the real
+check that Phase 2 actually works, and it has not yet been run in this
+project's development environment (no DB access there — see
+`docs/limitations.md`). Run it before starting Phase 3.
+
 ## Running tests
 
 ```bash
@@ -86,8 +112,8 @@ scripts/     Utility scripts (e.g. generate_incidents.py)
 
 | Phase | Scope | Status |
 |---|---|---|
-| 1 | Architecture + repo setup | ✅ this commit |
-| 2 | Database + schemas | not started |
+| 1 | Architecture + repo setup | ✅ |
+| 2 | Database + schemas | ✅ this commit — **run migrations before Phase 3** (see below) |
 | 3 | Simulated application | not started |
 | 4 | Log/metric/trace generation | not started |
 | 5 | Incident generator | not started |
